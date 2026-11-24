@@ -1,0 +1,7 @@
+.claude/skills/*/.venv/
+.claude/skills/*/models/
+.claude/skills/*/bin/
+.claude/skills/*/config.json
+.claude/skills/*/.ready
+.claude/skills/*/.env
+GTA6-Clips/
