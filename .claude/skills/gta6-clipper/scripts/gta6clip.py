@@ -290,9 +290,18 @@ def transcribe(wav, out_base=None, words=False):
         raise RuntimeError(f"whisper failed: {e}")
 
 
+def local_meta(path, streamer=None):
+    """A video file already on disk (no download): metadata from ffprobe."""
+    p = Path(path).resolve()
+    dur = float(json.loads(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json",
+                                str(p)]).stdout)["format"]["duration"])
+    return {"id": p.stem, "title": p.stem, "uploader": streamer or os.environ.get("GTA6_STREAMER") or p.stem,
+            "duration": dur, "extractor_key": "local", "webpage_url": str(p), "_local": str(p)}
+
+
 def prep_one(url, cookies, force=False):
     t0 = time.time()
-    meta = ytdlp_json(url, cookies, ["--no-playlist"])
+    meta = local_meta(url) if os.path.isfile(url) else ytdlp_json(url, cookies, ["--no-playlist"])
     if meta.get("live_status") == "is_live" and meta.get("extractor_key", "").lower().startswith("youtube"):
         return {"url": url, "error": "still live on YouTube: clip it once the replay is up (Twitch archives work while live)"}
     streamer = meta.get("uploader") or meta.get("channel") or "streamer"
@@ -302,12 +311,16 @@ def prep_one(url, cookies, force=False):
     (rd / "picks").mkdir(exist_ok=True)
     info = {"url": url, "webpage_url": meta.get("webpage_url") or url, "id": meta.get("id"),
             "title": meta.get("title"), "streamer": streamer, "platform": meta.get("extractor_key"),
-            "duration": meta.get("duration"), "cookies": cookies}
+            "duration": meta.get("duration"), "cookies": cookies, "local_file": meta.get("_local")}
     (rd / "stream.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
     if (rd / "transcript.json").exists() and not force:
         log(f"[{streamer}] already prepped -> {rd}")
         return {"run": str(rd), "streamer": streamer, "cached": True}
 
+    if meta.get("_local"):
+        wav = rd / "audio.wav"
+        run(["ffmpeg", "-y", "-loglevel", "error", "-i", meta["_local"], "-vn", "-ac", "1", "-ar", "16000", str(wav)])
+        return analyse(rd, info, meta, wav, streamer, t0, time.time())
     log(f"[{streamer}] 1/2 downloading audio only ({hms(meta.get('duration') or 0)} stream)")
     is_yt = "youtube" in (meta.get("extractor_key") or "").lower()
     with cf.ThreadPoolExecutor(2) as ex:
@@ -330,8 +343,10 @@ def prep_one(url, cookies, force=False):
     wav = rd / "audio.wav"
     run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-ac", "1", "-ar", "16000", str(wav)])
     src.unlink(missing_ok=True)
-    t_dl = time.time()
+    return analyse(rd, info, meta, wav, streamer, t0, time.time())
 
+
+def analyse(rd, info, meta, wav, streamer, t0, t_dl):
     log(f"[{streamer}] 2/2 transcribing on this PC + scanning for loud moments and chat spikes")
     with cf.ThreadPoolExecutor(2) as ex:
         fs = ex.submit(transcribe, wav, rd / "whisper")
@@ -648,6 +663,10 @@ def render_one(rd, info, c, n, cookies, keep, local_src=None, src_start=None):
     if local_src is not None:
         a = src_start
     src = Path(local_src) if local_src is not None else next(work.glob("src.*"), None)
+    if not src and info.get("local_file"):
+        src = work / "src.mp4"
+        run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{a:.2f}", "-to", f"{b:.2f}", "-i", info["local_file"],
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-c:a", "aac", "-b:a", "192k", str(src)])
     if not src:
         r = run(YTDLP + cookie_args(cookies) + ["--no-playlist", "-f",
                 "bv*[height<=1080][fps<=60]+ba/b[height<=1080]/bv*+ba/b", "--download-sections", f"*{a:.1f}-{b:.1f}",
