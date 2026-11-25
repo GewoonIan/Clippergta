@@ -299,8 +299,32 @@ def local_meta(path, streamer=None):
             "duration": dur, "extractor_key": "local", "webpage_url": str(p), "_local": str(p)}
 
 
+DRIVE_RE = re.compile(r"drive\.google\.com/(?:file/d/|open\?id=|uc\?.*?id=)([\w-]{20,})|drive\.usercontent\.google\.com/.*?id=([\w-]{20,})")
+
+
+def fetch_drive(url):
+    """Google Drive link (shared as 'anyone with the link') -> local video file."""
+    m = DRIVE_RE.search(url)
+    fid = m.group(1) or m.group(2)
+    dst = RUNS / "_downloads" / f"{fid}.mp4"
+    if dst.exists() and dst.stat().st_size > 1_000_000:
+        return str(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    log(f"downloading video from Google Drive ({fid})")
+    tmp = dst.with_suffix(".part")
+    req = urllib.request.Request(f"https://drive.usercontent.google.com/download?id={fid}&export=download&confirm=t")
+    with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as f:
+        if "text/html" in (r.headers.get("Content-Type") or ""):
+            raise RuntimeError("Google Drive gave a login page: set sharing to 'Anyone with the link' and retry")
+        shutil.copyfileobj(r, f, 1 << 20)
+    tmp.replace(dst)
+    return str(dst)
+
+
 def prep_one(url, cookies, force=False):
     t0 = time.time()
+    if DRIVE_RE.search(url):
+        url = fetch_drive(url)
     meta = local_meta(url) if os.path.isfile(url) else ytdlp_json(url, cookies, ["--no-playlist"])
     if meta.get("live_status") == "is_live" and meta.get("extractor_key", "").lower().startswith("youtube"):
         return {"url": url, "error": "still live on YouTube: clip it once the replay is up (Twitch archives work while live)"}

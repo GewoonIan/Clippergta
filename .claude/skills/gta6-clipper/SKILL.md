@@ -103,3 +103,6 @@ and picks the model. Be honest if asked: it's slower and the picks are rougher t
 - Non-English streams: `export GTA6_LANG=nl` (or de, fr, ...). Uses the multilingual Whisper `small` model.
   Write hooks/titles/captions in the stream's language unless the user asks otherwise.
 - Clips go to `$GTA6_CLIPS_DIR` (set it to a folder inside the repo, e.g. `GTA6-Clips/`, so you can open them).
+- Cloud sessions can't download from YouTube (403). Have the user put the video in Google Drive, share it as
+  "Anyone with the link", and pass that Drive link (or a local .mp4 path) to `prep`. Set `GTA6_STREAMER=<name>`
+  for the streamer name. Render cuts from the local file, no YouTube needed.
