@@ -55,7 +55,16 @@ def run(cmd, **kw):
 def cookie_args(c):
     if not c:
         return []
-    return ["--cookies", c] if os.path.isfile(c) else ["--cookies-from-browser", c]
+    if not os.path.isfile(c):
+        return ["--cookies-from-browser", c]
+    # yt-dlp writes rotated cookies back into the file, which can make YouTube reject them on the next
+    # call. Give every call its own throwaway copy so the original export stays intact.
+    import tempfile
+    fd, tmp = tempfile.mkstemp(prefix="gta6cookies-", suffix=".txt")
+    os.close(fd)
+    shutil.copyfile(c, tmp)
+    os.chmod(tmp, 0o600)
+    return ["--cookies", tmp]
 
 
 def hms(s):
