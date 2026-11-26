@@ -747,7 +747,7 @@ def render_one(rd, info, c, n, cookies, keep, local_src=None, src_start=None):
     out = clips / f"clip_{n:02d}_{slug(c.get('title') or c.get('hook'), 40)}.mp4"
     r = run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{ss:.3f}", "-t", f"{dur:.3f}", "-i", str(src),
              "-f", "concat", "-safe", "0", "-i", str(lst), "-filter_complex",
-             vf + ";[1:v]format=rgba[ov];[base][ov]overlay=0:0:eof_action=repeat:format=auto,format=yuv420p[v];"
+             vf + ";[1:v]format=rgba[ov];[base][ov]overlay=0:0:eof_action=repeat:format=auto,format=yuv420p,setsar=1[v];"
              "[0:a]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aout]",
              "-map", "[v]", "-map", "[aout]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
              "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out)])
