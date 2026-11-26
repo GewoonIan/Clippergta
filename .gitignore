@@ -5,3 +5,4 @@
 .claude/skills/*/.ready
 .claude/skills/*/.env
 GTA6-Clips/
+__pycache__/
