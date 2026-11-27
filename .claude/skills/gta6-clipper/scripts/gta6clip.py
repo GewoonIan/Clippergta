@@ -712,6 +712,13 @@ def render_one(rd, info, c, n, cookies, keep, local_src=None, src_start=None):
     elif forced == "cam":
         fc = {"mode": "cam", "face": fc["face"]}
     words = clip_words(src, ss, dur, work)
+    # per-pick caption fixes: {"misheard": "correct"} and extra words Whisper missed (e.g. a shout in a teaser)
+    fix = {k.lower(): v for k, v in (c.get("fix") or {}).items()}
+    for w in words:
+        core = w["t"].rstrip(".,!?")
+        if core.lower() in fix:
+            w["t"] = fix[core.lower()] + w["t"][len(core):]
+    words = sorted((c.get("extra_words") or []) + words, key=lambda w: w["s"])
     if fc["mode"] == "facecam":
         L, T, cw, ch = fc["box"]
         top_h = int(min(960, max(560, 1080 * ch / cw)))
