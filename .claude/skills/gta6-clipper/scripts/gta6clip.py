@@ -711,7 +711,8 @@ def render_one(rd, info, c, n, cookies, keep, local_src=None, src_start=None):
         fc = {"mode": "gameplay"}
     elif forced == "cam":
         fc = {"mode": "cam", "face": fc["face"]}
-    words = clip_words(src, ss, dur, work)
+    # captions: given word list (checked by hand) or Whisper on the clip
+    words = [dict(w) for w in c["words"]] if c.get("words") is not None else clip_words(src, ss, dur, work)
     # per-pick caption fixes: {"misheard": "correct"} and extra words Whisper missed (e.g. a shout in a teaser)
     fix = {k.lower(): v for k, v in (c.get("fix") or {}).items()}
     for w in words:
